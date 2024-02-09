@@ -1,0 +1,95 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import jaccard_score
+from sklearn.metrics.pairwise import cosine_similarity
+
+def get_float_input(prompt):
+    while True:
+        try:
+            value = float(input(prompt))
+            return value
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
+
+def input_passage_values(features):
+    values = []
+    for feature in features:
+        value = get_float_input(f"{feature}: ")
+        values.append(value)
+    return np.array(values)
+
+def add_and_get_values_for_additional_features(features, passage1, passage2):
+    while True:
+        add_more = input("\nDo you want to add more features? (yes/no): ").lower()
+        if add_more == 'yes':
+            feature_name = input("Enter the name of the new feature: ")
+            features.append(feature_name)
+            value1 = get_float_input(f"Enter value for Passage 1 - {feature_name}: ")
+            value2 = get_float_input(f"Enter value for Passage 2 - {feature_name}: ")
+            passage1 = np.append(passage1, value1)
+            passage2 = np.append(passage2, value2)
+        elif add_more == 'no':
+            break
+    return features, passage1, passage2
+
+def plot_radial_graph(features, passage1, passage2):
+    angles = np.linspace(0, 2 * np.pi, len(features), endpoint=False).tolist()
+    passage1 = np.concatenate((passage1, [passage1[0]]))
+    passage2 = np.concatenate((passage2, [passage2[0]]))
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.fill(angles, passage1, color='red', alpha=0.25)
+    ax.fill(angles, passage2, color='blue', alpha=0.25)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(features)
+    plt.legend(["Passage 1", "Passage 2"], loc='upper right', bbox_to_anchor=(1.1, 1.1))
+    plt.show()
+
+features = [
+    "Recovery period from dormancy or post-bleaching",
+    "Time to achieve characteristic shape",
+    "Percentage of area covered",
+    "Duration for surface attachment",
+    "Percentage of days across two passages",
+    "Percentage of total growth period",
+    "Number of media changes",
+    "Days between changes",
+    "Time for population to double"
+]
+
+print("\nEnter values for Passage 1:")
+passage1 = input_passage_values(features)
+print("\nEnter values for Passage 2:")
+passage2 = input_passage_values(features)
+
+features, passage1, passage2 = add_and_get_values_for_additional_features(features, passage1, passage2)
+
+min_val = np.min([passage1.min(), passage2.min()])
+max_val = np.max([passage1.max(), passage2.max()])
+passage1_normalized = (passage1 - min_val) / (max_val - min_val)
+passage2_normalized = (passage2 - min_val) / (max_val - min_val)
+
+feature_differences = np.abs(passage1_normalized - passage2_normalized)
+sorted_diff_indices = np.argsort(feature_differences)[::-1]
+
+dissimilarity = np.sqrt(np.sum((passage1_normalized - passage2_normalized) ** 2))
+max_possible_distance = np.sqrt(len(passage1_normalized))
+euclidean_similarity = 1 - (dissimilarity / max_possible_distance)
+passage1_binary = (passage1 > 0.5).astype(int)
+passage2_binary = (passage2 > 0.5).astype(int)
+jaccard_similarity = jaccard_score(passage1_binary, passage2_binary, average='weighted')
+cosine_similarity_score = cosine_similarity(passage1_normalized.reshape(1, -1), passage2_normalized.reshape(1, -1))[0, 0]
+
+print(f"\nEuclidean Similarity Score between two passages: {euclidean_similarity:.2f}")
+print(f"Jaccard Index: {jaccard_similarity:.2f}")
+print(f"Cosine Similarity Score between two passages: {cosine_similarity_score:.2f}")
+
+print("\nFeature with the largest difference: ", features[sorted_diff_indices[0]])
+print("Largest Difference Value: ", feature_differences[sorted_diff_indices[0]])
+
+print("\nFeatures contributing to variation (in order of impact):")
+for idx in sorted_diff_indices:
+    print(f"{features[idx]}: {feature_differences[idx]:.2f}")
+
+plot_radial_graph(features, passage1_normalized, passage2_normalized)
